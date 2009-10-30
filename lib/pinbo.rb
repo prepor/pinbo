@@ -1,4 +1,6 @@
 require 'socket'
+require 'timeout'
+
 
 module Pinbo
   
@@ -52,6 +54,7 @@ module Pinbo
   def self.stop(options = {})
     data.merge!( :request_time => Time.now - @@request_start ).merge!(options)
     Request.new( :data => data, :timers => timers).perform
+    increase_counter
   end
   
   def self.timer(tags = {}, &block)
@@ -70,7 +73,16 @@ module Pinbo
     end
     
     def cmd
-      
+      req = Proto::Pinbo.new 
+      req.hostname = Config[:hostname]
+      req.server_name = Config[:server_name]
+      req.script_name = options[:data][:script_name]
+      req.request_count = options[:data][:request_count]
+      req.document_size = options[:data][:document_size]
+      req.memory_peak = options[:data][:memory_peak]
+      req.request_time = options[:data][:request_time]
+      req.ru_utime = options[:data][:ru_utime]
+      req.ru_stime = options[:data][:ru_stime]
     end
     
     def perform
