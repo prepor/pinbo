@@ -4,7 +4,11 @@ Pinbo.start :script_name => '/go!'
 
 Object.send :include, Pinbo::Timer
 
-timer :a => :foo, :b => :bar do
+timer :te => :tete do
+  sleep 1
+end
+
+timer :ma => :meme, :re => :riri do
   sleep 1
 end
 
