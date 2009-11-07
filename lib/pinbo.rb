@@ -2,140 +2,98 @@ require 'rubygems'
 require 'socket'
 require 'timeout'
 require 'ruby_protobuf'
+require "socket"
 require 'proto/pinbo.pb'
 
 module Pinbo
+
+  require 'pinbo/timer'
+  require 'pinbo/request'
+  require 'pinbo/middleware'
   
   Config = {
-    :host => 'Andrew-Rudenkos-Mac-Pro.local',
-    :server_name => 'localhost',
-    :key => 'asdagsdf',
-    :pinba_host => '86400.ru', #:pinba_host => 'localhost',
-    :pinba_port => 30003
+    :host => Socket.gethostname,
+    :pinba_host => '74.86.33.154', #:pinba_host => 'localhost',
+    :pinba_port => 30002
   }
   
-  def self.counter
-    @@counter ||= 1
-  end
+  class << self
   
-  def self.counter=(val)
-    @@counter = val
-  end
-  
-  def self.data
-    @@data
-  end
-  
-  def self.data=(val)
-    @@data = val
-  end
-  
-  def self.timers
-    @@timers
-  end
-  
-  def self.timers=(val)
-    @@timers = val
-  end
-  
-  def self.increase_counter
-    self.counter += 1
-  end
-  
-  def self.start(options = {})
-    @@request_start = Time.now
-    @@timer_counter = 0
-    self.data = { 
-                  :script_name => '/test.php',
-                  :request_count => counter,
-                  :document_size => 0,
-                  :memory_peak => 0,
-                  :request_time => 0,
-                  :ru_utime => 0,
-                  :ru_stime => 0 }.merge(options)
-    self.timers = []
-  end
-  
-  def self.timer_counter
-    @@timer_counter += 1
-    @@timer_counter - 1
-  end
-  
-  def self.stop(options = {})
-    data.merge!( :request_time => Time.now - @@request_start ).merge!(options)
-    Request.new( :data => data, :timers => timers).perform
-    increase_counter
-  end
-  
-  def self.timer(tags = {}, &block)
-    t = { :tags => tags.map { |k, v| { :name_id => timer_counter, :value_id => timer_counter, :name => k.to_s, :value => v.to_s }}, :start => Time.now }
-    
-    self.timers << t
-    block.call
-    time = Time.now
-    t[:stop] = time
-    t[:period] = t[:stop] - t[:start]
-  end
-  
-  class Request
-    attr_accessor :options
-    def initialize(options)
-      self.options = options
+    def counter
+      Thread.current[:counter] ||= 1
     end
-    
-    def cmd
-      req = Proto::Pinbo::Request.new 
-      req.hostname = Config[:host]
-      req.server_name = Config[:server_name]
-      req.script_name = options[:data][:script_name]
-      req.request_count = options[:data][:request_count]
-      req.document_size = options[:data][:document_size]
-      req.memory_peak = options[:data][:memory_peak]
-      req.request_time = options[:data][:request_time]
-      req.ru_utime = options[:data][:ru_utime]
-      req.ru_stime = options[:data][:ru_stime]
-      Pinbo.timers.each do |timer|
-         req.timer_hit_count << 1 # это надо реализовать
-         req.timer_value << timer[:period]
-         req.timer_tag_count << timer[:tags].size
-         timer[:tags].each do |tag|
-           req.timer_tag_name << tag[:name_id]
-           req.dictionary << tag[:name]
-           req.timer_tag_value << tag[:value_id]
-           req.dictionary << tag[:value]
-         end
-       end
-      req.status = 200
-      req.serialize_to_string
-    end
-    
-    def perform
-      sock = nil
-      begin
-        sock = UDPSocket.open        
-        sock.send(cmd, 0, Config[:pinba_host], Config[:pinba_port])
-      rescue IOError, SystemCallError
-      ensure
-        sock.close if sock
-      end
-    end
-  end
   
-  module Timer
+    def counter=(val)
+      Thread.current[:counter] = val
+    end
+  
+    def data
+      Thread.current[:data]
+    end
+  
+    def data=(val)
+      Thread.current[:data] = val
+    end
+  
+    def timers
+      Thread.current[:timers]
+    end
+  
+    def timers=(val)
+      Thread.current[:timers] = val
+    end
+  
+    def increase_counter
+      self.counter += 1
+    end
+  
+    def start(options = {})
+      Thread.current[:request_start] = Time.now
+      Thread.current[:timer_counter] = 0
+      self.data = { 
+                    :server_name => Socket.gethostname,
+                    :script_name => '/test.rb',
+                    :request_count => counter,
+                    :document_size => 0,
+                    :memory_peak => 0,
+                    :request_time => 0,
+                    :ru_utime => 0,
+                    :ru_stime => 0,
+                    :status => 200 }.merge(options)
+      self.timers = []
+    end
+  
+    def timer_counter
+      Thread.current[:timer_counter] += 1
+      Thread.current[:timer_counter] - 1
+    end
+  
+    def stop(options = {})
+      data.merge!( :request_time => Time.now - Thread.current[:request_start] ).merge!(options)
+      Request.new( :data => data, :timers => timers).perform
+      increase_counter
+    end
+  
     def timer(tags = {}, &block)
-      Pinbo.timer(tags, &block)
-    end
-  end
-  
-  class Middleware
-    def initialize(app)
-      @app = app
+      t = get_timer(tags)
+      t[:start] = Time.now
+      block.call
+      time = Time.now
+      t[:counter] += 1
+      t[:stop] = time
+      t[:period] += t[:stop] - t[:start]
     end
     
-    def call(env)
-      Pinbo.start :script_name => env.path_info
-      @app.call(env)
-      Pinbo.stop
+    def normalize_tags(raw_tags)
+      raw_tags.map { |k, v| { :name_id => timer_counter, :value_id => timer_counter, :name => k.to_s, :value => v.to_s } }
+    end
+    
+    def get_timer(tags)
+      unless (t = self.timers.detect { |v| v[:tags] == tags } ) 
+        t = { :tags => tags, :normalized_tags => normalize_tags(tags), :counter => 0, :period => 0 }
+        self.timers << t
+      end
+      t
     end
   end
   
