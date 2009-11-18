@@ -28,8 +28,8 @@ module Pinbo
          end
        end
       req.status = options[:data][:status]
-      require 'ruby-debug'
-      debugger
+      # require 'ruby-debug'
+      # debugger
       req.serialize_to_string
     end
   
