@@ -10,7 +10,8 @@ begin
     gem.email = "ceo@prepor.ru"
     gem.homepage = "http://github.com/prepor/pinbo"
     gem.authors = ["Andrew Rudenko"]
-    gem.add_development_dependency "thoughtbot-shoulda", ">= 0"
+    gem.add_development_dependency "thoughtbot-shoulda", ">= 0"    
+    gem.add_dependency 'ruby_protobuf'
     # gem is a Gem::Specification... see http://www.rubygems.org/read/chapter/20 for additional settings
   end
 rescue LoadError
