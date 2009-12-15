@@ -1,7 +1,44 @@
 = pinbo
 
-Description goes here.
+== Install
 
+  sudo gem install pinbo
+
+== Rack middleware
+
+  #environment.rb - Rails
+  
+  config.gem "pinbo"
+  config.middleware.use "Rack::Bug"
+  
+  # or
+  
+  use Pinbo::Middleware
+  
+== Daemons
+
+  Pinbo.start :script_name => name
+  
+  Pinbo.stop :status => status, :server_name => server_name, :document_size => size
+  
+== Timers
+
+  Pinbo.timer :layout => :index, :action => :generate_all do
+    2 + 2 * 4
+    sleep rand
+  end
+  
+or you can 
+
+  Object.send :include, Pinbo::Timer
+  
+and simply do
+
+  timer :layout => :index, :action => :generate_all do
+    2 + 2 * 4
+    sleep rand
+  end
+  
 == Note on Patches/Pull Requests
  
 * Fork the project.
